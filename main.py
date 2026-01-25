@@ -6,7 +6,7 @@ import os
 import pyperclip
 from pynput import keyboard
 
-from app import listener, settings, state, notification, overlay
+from app import listener, settings, state, notification, overlay, permissions
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,6 +25,20 @@ class ListenerApp:
         self.app = state.App(config_path=config_path, on_quit=self._quit_app)
         self.app.set_state(state.State.STARTUP)
         self.status_overlay = overlay.StatusOverlay()
+
+        if not permissions.check_accessibility_permission():
+            logger.warning("Accessibility permission not granted")
+            permissions.request_accessibility_permission()
+            notification.send_notification(
+                "Listener",
+                "Please enable Listener in System Settings → Privacy & Security → Accessibility, then restart the app.",
+                "Accessibility permission required",
+            )
+            self.app.set_state(
+                state.State.ERROR,
+                message="Accessibility permission required. Please grant permission in System Settings, then restart the app.",
+            )
+            return
 
         try:
             self.listener = listener.Listener(
@@ -84,7 +98,7 @@ class ListenerApp:
     def _on_error(self, message: str) -> None:
         self.app.set_state(state.State.ERROR, message=message)
 
-        notification.send_notification(message)
+        notification.send_notification("Listener", message, "Error")
 
     def run(self) -> None:
         self.app.run()

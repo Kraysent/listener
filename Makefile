@@ -4,7 +4,7 @@ build: clean
 	uv run pyinstaller build_app.spec
 
 clean:
-	rm -rf dist build
+	/bin/rm -rf dist build || true
 
 install: build
 	cp -r dist/Listener.app /Applications/

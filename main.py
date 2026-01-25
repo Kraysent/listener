@@ -3,14 +3,16 @@ import sys
 import tempfile
 import threading
 from pathlib import Path
+import time
 
 import numpy as np
 import pyperclip
-import rumps
 import sounddevice as sd
 from faster_whisper import WhisperModel
 from pynput import keyboard
 from scipy.io import wavfile
+
+from app import state, notification
 
 logging.basicConfig(
     level=logging.INFO,
@@ -18,44 +20,45 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-WHISPER_MODEL = "base"
+WHISPER_MODEL = "tiny"
 SAMPLE_RATE = 16000
 HOTKEY = keyboard.Key.alt_r
 
   
-class ListenerApp(rumps.App):
+class ListenerApp(state.App):
     def __init__(self):
-        super().__init__("Listener", title="🎤", quit_button=None)
+        super().__init__(on_quit=self.quit_app)
         self.is_recording = False
         self.audio_data: list[np.ndarray] = []
         self.stream: sd.InputStream | None = None
         self.model: WhisperModel | None = None
         self.model_loading = True
         
-        self.menu = [rumps.MenuItem("Status: Loading model...")]
         self.keyboard_listener: keyboard.Listener | None = None
+        
+        self.set_state(state.State.STARTUP)
         
         threading.Thread(target=self._load_model, daemon=True).start()
         threading.Thread(target=self._start_hotkey_listener, daemon=True).start()
+
+    def quit_app(self) -> None:
+        if self.stream:
+            self.stream.stop()
+            self.stream.close()
+        if self.keyboard_listener:
+            self.keyboard_listener.stop()
 
     def _load_model(self) -> None:
         try:
             self.model = WhisperModel(WHISPER_MODEL, compute_type="int8")
             self.model_loading = False
-            rumps.notification(
-                title="Listener",
-                subtitle="Ready",
-                message=f"Whisper model '{WHISPER_MODEL}' loaded. Press Right Option to start recording.",
+            notification.send_notification(
+                notification.NotificationType.READY,
+                f"Whisper model '{WHISPER_MODEL}' loaded. Press Right Option to start recording.",
             )
-            self._update_status("Ready - Press Right Option to record")
+            self.set_state(state.State.READY_TO_LISTEN)
         except Exception as e:
-            self._update_status(f"Error loading model: {e}")
-
-    def _update_status(self, status: str, icon: str | None = None) -> None:
-        if self.menu and len(self.menu) > 0:
-            self.menu["Status: Loading model..."].title = f"Status: {status}"
-        if icon:
-            self.title = icon
+            self.set_state(state.State.ERROR, message=f"Error loading model: {e}")
 
     def _start_hotkey_listener(self) -> None:
         def on_press(key: keyboard.Key | keyboard.KeyCode | None) -> None:
@@ -64,37 +67,33 @@ class ListenerApp(rumps.App):
 
         def on_error(error: Exception) -> None:
             logger.error(f"Keyboard listener error: {error}")
-            rumps.notification(
-                title="Listener",
-                subtitle="Accessibility Permission Required",
-                message="Please grant accessibility permissions in System Settings → Privacy & Security → Accessibility",
+            notification.send_notification(
+                notification.NotificationType.PERMISSION_REQUIRED,
+                "Please grant accessibility permissions in System Settings → Privacy & Security → Accessibility",
             )
-            self._update_status("Accessibility permission required", icon="⚠️")
+            self.set_state(state.State.ERROR, message="Accessibility permission required")
 
         try:
             self.keyboard_listener = keyboard.Listener(on_press=on_press, on_error=on_error)
             self.keyboard_listener.start()
             
-            import time
             time.sleep(0.5)
             
             if not self.keyboard_listener.is_alive():
                 raise RuntimeError("Keyboard listener failed to start - check accessibility permissions")
         except Exception as e:
             logger.error(f"Failed to start keyboard listener: {e}")
-            rumps.notification(
-                title="Listener",
-                subtitle="Keyboard Access Error",
-                message="Could not start keyboard listener. Please grant accessibility permissions in System Settings → Privacy & Security → Accessibility, then restart the app.",
+            notification.send_notification(
+                notification.NotificationType.ERROR,
+                "Could not start keyboard listener. Please grant accessibility permissions in System Settings → Privacy & Security → Accessibility, then restart the app.",
             )
-            self._update_status("Accessibility permission required", icon="⚠️")
+            self.set_state(state.State.ERROR, message="Accessibility permission required")
 
     def _toggle_recording(self) -> None:
         if self.model_loading:
-            rumps.notification(
-                title="Listener",
-                subtitle="Please wait",
-                message="Model is still loading...",
+            notification.send_notification(
+                notification.NotificationType.PLEASE_WAIT,
+                "Model is still loading...",
             )
             return
 
@@ -106,7 +105,7 @@ class ListenerApp(rumps.App):
     def _start_recording(self) -> None:
         self.is_recording = True
         self.audio_data = []
-        self._update_status("Recording...", icon="🔴")
+        self.set_state(state.State.LISTENING)
 
         def audio_callback(
             indata: np.ndarray, frames: int, time_info: dict, status: sd.CallbackFlags
@@ -123,24 +122,22 @@ class ListenerApp(rumps.App):
             self.stream.start()
         except PermissionError as e:
             self.is_recording = False
-            self._update_status("Microphone permission required", icon="⚠️")
-            rumps.notification(
-                title="Listener",
-                subtitle="Microphone Permission Required",
-                message="Please grant microphone access in System Settings → Privacy & Security → Microphone, then try again.",
+            self.set_state(state.State.ERROR, message="Microphone permission required")
+            notification.send_notification(
+                notification.NotificationType.PERMISSION_REQUIRED,
+                "Please grant microphone access in System Settings → Privacy & Security → Microphone, then try again.",
             )
         except Exception as e:
             self.is_recording = False
-            self._update_status(f"Microphone error: {e}", icon="🎤")
-            rumps.notification(
-                title="Listener",
-                subtitle="Error",
-                message=f"Could not access microphone: {e}. Please check microphone permissions in System Settings.",
+            self.set_state(state.State.ERROR, message=f"Microphone error: {e}")
+            notification.send_notification(
+                notification.NotificationType.ERROR,
+                f"Could not access microphone: {e}. Please check microphone permissions in System Settings.",
             )
 
     def _stop_recording(self) -> None:
         self.is_recording = False
-        self._update_status("Transcribing...", icon="⏳")
+        self.set_state(state.State.TRANSCRIBING)
 
         if self.stream:
             self.stream.stop()
@@ -148,7 +145,7 @@ class ListenerApp(rumps.App):
             self.stream = None
 
         if not self.audio_data:
-            self._update_status("Ready - Press Right Option to record", icon="🎤")
+            self.set_state(state.State.READY_TO_LISTEN)
             return
 
         threading.Thread(target=self._transcribe_audio, daemon=True).start()
@@ -169,36 +166,24 @@ class ListenerApp(rumps.App):
 
             if text:
                 pyperclip.copy(text)
-                rumps.notification(
-                    title="Listener",
-                    subtitle="Transcription complete",
-                    message=f"Copied to clipboard: {text[:50]}{'...' if len(text) > 50 else ''}",
+                notification.send_notification(
+                    notification.NotificationType.TRANSCRIPTION_COMPLETE,
+                    f"Copied to clipboard: {text[:50]}{'...' if len(text) > 50 else ''}",
                 )
             else:
-                rumps.notification(
-                    title="Listener",
-                    subtitle="No speech detected",
-                    message="Try speaking louder or closer to the microphone.",
+                notification.send_notification(
+                    notification.NotificationType.NO_SPEECH_DETECTED,
+                    "Try speaking louder or closer to the microphone.",
                 )
 
         except Exception as e:
-            rumps.notification(
-                title="Listener",
-                subtitle="Transcription error",
-                message=str(e),
+            notification.send_notification(
+                notification.NotificationType.ERROR,
+                str(e),
             )
 
         finally:
-            self._update_status("Ready - Press Right Option to record", icon="🎤")
-
-    @rumps.clicked("Quit")
-    def quit_app(self, _: rumps.MenuItem) -> None:
-        if self.stream:
-            self.stream.stop()
-            self.stream.close()
-        if self.keyboard_listener:
-            self.keyboard_listener.stop()
-        rumps.quit_application()
+            self.set_state(state.State.READY_TO_LISTEN)
 
 
 def main() -> None:

@@ -4,6 +4,7 @@ import sys
 import fcntl
 import os
 import pyperclip
+from pynput import keyboard
 
 from app import listener, settings, state, notification, overlay
 
@@ -64,10 +65,21 @@ class ListenerApp:
     def _on_transcription_complete(self, text: str) -> None:
         if text:
             pyperclip.copy(text)
+            self._paste_text()
             self.status_overlay.show("✓ Complete", duration=1.5)
         else:
             self.status_overlay.show("⚠ No speech", duration=1.5)
         self.app.set_state(state.State.READY_TO_LISTEN)
+
+    def _paste_text(self) -> None:
+        try:
+            controller = keyboard.Controller()
+            controller.press(keyboard.Key.cmd)
+            controller.press('v')
+            controller.release('v')
+            controller.release(keyboard.Key.cmd)
+        except Exception as e:
+            logger.warning(f"Failed to paste text: {e}")
 
     def _on_error(self, message: str) -> None:
         self.app.set_state(state.State.ERROR, message=message)

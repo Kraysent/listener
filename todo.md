@@ -1,9 +1,6 @@
 - start on system startup
-- sound or small notification when recording starts/stops and transcription finishes
 - configurable hotkey to start recording
 - dictionary via prompt for whisper model with configurability through tray icon
-- proper tray icons for each state
-- automatic pasting (maybe optional)
 - history of executions (maybe not needed, can just use separate clipboard history app)
 - pack as easy-to run binary/command
 - pick style of writing (e.g. chnge system prompt to use certain style)

@@ -45,10 +45,6 @@ class ListenerApp:
 
             self.app.subscribe_to_settings(on_settings_changed)
 
-            notification.send_notification(
-                notification.NotificationType.READY,
-                f"Whisper model '{self.app.settings.whisper_model}' loaded. Press {self.app.settings.hotkey.to_string()} to start recording.",
-            )
             self.app.set_state(state.State.READY_TO_LISTEN)
         except Exception as e:
             self.app.set_state(state.State.ERROR, message=str(e))
@@ -69,25 +65,14 @@ class ListenerApp:
         if text:
             pyperclip.copy(text)
             self.status_overlay.show("✓ Complete", duration=1.5)
-            notification.send_notification(
-                notification.NotificationType.TRANSCRIPTION_COMPLETE,
-                f"Copied to clipboard: {text[:50]}{'...' if len(text) > 50 else ''}",
-            )
         else:
             self.status_overlay.show("⚠ No speech", duration=1.5)
-            notification.send_notification(
-                notification.NotificationType.NO_SPEECH_DETECTED,
-                "Try speaking louder or closer to the microphone.",
-            )
         self.app.set_state(state.State.READY_TO_LISTEN)
 
     def _on_error(self, message: str) -> None:
         self.app.set_state(state.State.ERROR, message=message)
 
-        notification.send_notification(
-            notification.NotificationType.ERROR,
-            message,
-        )
+        notification.send_notification(message)
 
     def run(self) -> None:
         self.app.run()

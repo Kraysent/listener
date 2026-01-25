@@ -21,17 +21,17 @@ WHISPER_MODEL = "base"
 SAMPLE_RATE = 16000
 HOTKEY = keyboard.Key.alt_r
 
-
+  
 class ListenerApp(rumps.App):
     def __init__(self):
-        super().__init__("Listener", title="🎤")
+        super().__init__("Listener", title="🎤", quit_button=None)
         self.is_recording = False
         self.audio_data: list[np.ndarray] = []
         self.stream: sd.InputStream | None = None
         self.model: WhisperModel | None = None
         self.model_loading = True
         
-        self.menu = [rumps.MenuItem("Status: Loading model..."), None, "Quit"]
+        self.menu = [rumps.MenuItem("Status: Loading model...")]
         
         threading.Thread(target=self._load_model, daemon=True).start()
         threading.Thread(target=self._start_hotkey_listener, daemon=True).start()

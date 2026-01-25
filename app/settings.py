@@ -26,6 +26,8 @@ class Hotkey(enum.Enum):
 
 class Settings(pydantic.BaseModel):
     hotkey: Hotkey
+    whisper_model: str
+    sample_rate: int
 
 def load_settings(config_path: pathlib.Path):
     with open(config_path, "r", encoding="utf-8") as f:

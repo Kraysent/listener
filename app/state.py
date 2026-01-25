@@ -1,7 +1,10 @@
 import enum
 from typing import Callable
 from dataclasses import dataclass
+import pathlib
 import rumps
+
+from app import settings
 
 
 class State(enum.Enum):
@@ -35,7 +38,7 @@ _STATE_CONFIG: dict[State, StateConfig] = {
 
 
 class App(rumps.App):
-    def __init__(self, on_quit: Callable[[], None]):
+    def __init__(self, config_path: pathlib.Path, on_quit: Callable[[], None]):
         super().__init__(
             "Listener",
             "🎤",
@@ -43,6 +46,7 @@ class App(rumps.App):
             quit_button=None,
         )
 
+        self.settings = settings.load_settings(config_path=config_path)
         self.on_quit_callback = on_quit
         self.menu.add(rumps.MenuItem("Quit", callback=self._quit_handler))
 

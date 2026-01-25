@@ -1,3 +1,5 @@
 {
-  "hotkey": "right_option"
+  "hotkey": "right_option",
+  "whisper_model": "tiny",
+  "sample_rate": 16000
 }

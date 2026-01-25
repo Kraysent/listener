@@ -5,7 +5,7 @@ import fcntl
 import os
 import pyperclip
 
-from app import listener, state, notification, settings
+from app import listener, state, notification
 
 logging.basicConfig(
     level=logging.INFO,
@@ -13,31 +13,27 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-WHISPER_MODEL = "tiny"
-
 
 class ListenerApp:
     def __init__(self):
-        self.app = state.App(on_quit=self._quit_app)
+        config_path = pathlib.Path("config") / "settings.json"
+        self.app = state.App(config_path=config_path, on_quit=self._quit_app)
         self.app.set_state(state.State.STARTUP)
-
-        self.settings = settings.load_settings(
-            config_path=pathlib.Path("config") / "settings.json"
-        )
 
         try:
             self.listener = listener.Listener(
-                hotkey=self.settings.hotkey.to_keyboard_key(),
-                model=WHISPER_MODEL,
+                hotkey=self.app.settings.hotkey.to_keyboard_key(),
+                model=self.app.settings.whisper_model,
+                sample_rate=self.app.settings.sample_rate,
                 on_listening_started=self._on_listening_started,
                 on_listening_stopped=self._on_listening_stopped,
                 on_transcription_complete=self._on_transcription_complete,
                 on_error=self._on_error,
             )
-            hotkey_string = self.settings.hotkey.to_string()
+            hotkey_string = self.app.settings.hotkey.to_string()
             notification.send_notification(
                 notification.NotificationType.READY,
-                f"Whisper model '{WHISPER_MODEL}' loaded. Press {hotkey_string} to start recording.",
+                f"Whisper model '{self.app.settings.whisper_model}' loaded. Press {hotkey_string} to start recording.",
             )
             self.app.set_state(state.State.READY_TO_LISTEN)
         except Exception as e:

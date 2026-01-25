@@ -13,20 +13,20 @@ from scipy.io import wavfile
 
 logger = logging.getLogger(__name__)
 
-SAMPLE_RATE = 16000
-
 
 class Listener:
     def __init__(
         self,
         hotkey: keyboard.Key | keyboard.KeyCode,
         model: str,
+        sample_rate: int,
         on_listening_started: Callable[[], None] | None = None,
         on_listening_stopped: Callable[[], None] | None = None,
         on_transcription_complete: Callable[[str], None] | None = None,
         on_error: Callable[[str], None] | None = None,
     ) -> None:
         self.hotkey = hotkey
+        self.sample_rate = sample_rate
         self.is_recording = False
         self.audio_data: list[np.ndarray] = []
         self.stream: sd.InputStream | None = None
@@ -98,7 +98,7 @@ class Listener:
 
         try:
             self.stream = sd.InputStream(
-                samplerate=SAMPLE_RATE,
+                samplerate=self.sample_rate,
                 channels=1,
                 dtype=np.float32,
                 callback=audio_callback,
@@ -140,7 +140,7 @@ class Listener:
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
                 temp_path = Path(f.name)
                 audio_int16 = (audio * 32767).astype(np.int16)
-                wavfile.write(temp_path, SAMPLE_RATE, audio_int16)
+                wavfile.write(temp_path, self.sample_rate, audio_int16)
 
             segments, _ = self.model.transcribe(str(temp_path))
             text = " ".join(segment.text for segment in segments).strip()

@@ -25,8 +25,6 @@ class Listener:
         on_transcription_complete: Callable[[str], None] | None = None,
         on_error: Callable[[str], None] | None = None,
     ) -> None:
-        self.hotkey = hotkey
-        self.sample_rate = sample_rate
         self.is_recording = False
         self.audio_data: list[np.ndarray] = []
         self.stream: sd.InputStream | None = None
@@ -37,8 +35,20 @@ class Listener:
         self.on_transcription_complete = on_transcription_complete
         self.on_error = on_error
 
+        self._initialize(hotkey, model, sample_rate)
+
+    def _initialize(
+        self,
+        hotkey: keyboard.Key | keyboard.KeyCode,
+        model: str,
+        sample_rate: int,
+    ) -> None:
+        self.hotkey = hotkey
+        self.sample_rate = sample_rate
+
         try:
             self.model = WhisperModel(model, compute_type="int8")
+            self.model_name = model
         except Exception as e:
             error_msg = f"Error loading model: {e}"
             if self.on_error:
@@ -46,6 +56,22 @@ class Listener:
             raise RuntimeError(error_msg) from e
 
         self._start_hotkey_listener()
+
+    def reload(
+        self,
+        hotkey: keyboard.Key | keyboard.KeyCode,
+        model: str,
+        sample_rate: int,
+    ) -> None:
+        was_recording = self.is_recording
+        if was_recording:
+            self._stop_recording()
+
+        if self.keyboard_listener:
+            self.keyboard_listener.stop()
+            self.keyboard_listener = None
+
+        self._initialize(hotkey, model, sample_rate)
 
     def _start_hotkey_listener(self) -> None:
         def on_press(key: keyboard.Key | keyboard.KeyCode | None) -> None:
@@ -162,3 +188,4 @@ class Listener:
             self.stream = None
         if self.keyboard_listener:
             self.keyboard_listener.stop()
+            self.keyboard_listener = None

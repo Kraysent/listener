@@ -5,7 +5,7 @@ import fcntl
 import os
 import pyperclip
 
-from app import listener, state, notification
+from app import listener, settings, state, notification
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,10 +30,19 @@ class ListenerApp:
                 on_transcription_complete=self._on_transcription_complete,
                 on_error=self._on_error,
             )
-            hotkey_string = self.app.settings.hotkey.to_string()
+
+            def on_settings_changed(new_settings: settings.Settings) -> None:
+                self.listener.reload(
+                    hotkey=new_settings.hotkey.to_keyboard_key(),
+                    model=new_settings.whisper_model,
+                    sample_rate=new_settings.sample_rate,
+                )
+
+            self.app.subscribe_to_settings(on_settings_changed)
+
             notification.send_notification(
                 notification.NotificationType.READY,
-                f"Whisper model '{self.app.settings.whisper_model}' loaded. Press {hotkey_string} to start recording.",
+                f"Whisper model '{self.app.settings.whisper_model}' loaded. Press {self.app.settings.hotkey.to_string()} to start recording.",
             )
             self.app.set_state(state.State.READY_TO_LISTEN)
         except Exception as e:

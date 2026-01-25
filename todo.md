@@ -1,5 +1,5 @@
 - start on system startup
-- sound when recording starts/stops
+- sound or small notification when recording starts/stops and transcription finishes
 - configurable hotkey to start recording
 - dictionary via prompt for whisper model with configurability through tray icon
 - proper tray icons for each state

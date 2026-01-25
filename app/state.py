@@ -15,9 +15,6 @@ class State(enum.Enum):
     ERROR = "error"
 
 
-_initial_menu_key = "Status: Loading model..."
-
-
 def _get_error_icon(has_message: bool) -> str:
     return "⚠️" if has_message else "🎤"
 
@@ -46,8 +43,10 @@ class App(rumps.App):
             quit_button=None,
         )
 
+        self.config_path = config_path
         self.settings = settings.load_settings(config_path=config_path)
         self.on_quit_callback = on_quit
+        self._settings_observers: list[Callable[[settings.Settings], None]] = []
         self.menu.add(rumps.MenuItem("Quit", callback=self._quit_handler))
 
     def set_state(self, state: State, message: str = "") -> None:
@@ -62,6 +61,29 @@ class App(rumps.App):
             icon = icon_config
 
         self.title = icon
+
+    def subscribe_to_settings(
+        self, callback: Callable[[settings.Settings], None]
+    ) -> Callable[[], None]:
+        self._settings_observers.append(callback)
+
+        def unsubscribe() -> None:
+            if callback in self._settings_observers:
+                self._settings_observers.remove(callback)
+
+        return unsubscribe
+
+    def update_settings(self, new_settings: settings.Settings) -> None:
+        self.settings = new_settings
+        self._notify_settings_observers()
+
+    def reload_settings(self) -> None:
+        self.settings = settings.load_settings(config_path=self.config_path)
+        self._notify_settings_observers()
+
+    def _notify_settings_observers(self) -> None:
+        for observer in self._settings_observers:
+            observer(self.settings)
 
     def _quit_handler(self, _) -> None:
         self.on_quit_callback()

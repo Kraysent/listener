@@ -16,10 +16,10 @@ logger = logging.getLogger(__name__)
 WHISPER_MODEL = "tiny"
 
 
-class ListenerApp(state.App):
+class ListenerApp:
     def __init__(self):
-        super().__init__(on_quit=self._quit_app)
-        self.set_state(state.State.STARTUP)
+        self.app = state.App(on_quit=self._quit_app)
+        self.app.set_state(state.State.STARTUP)
 
         self.settings = settings.load_settings(
             config_path=pathlib.Path("config") / "settings.json"
@@ -39,19 +39,19 @@ class ListenerApp(state.App):
                 notification.NotificationType.READY,
                 f"Whisper model '{WHISPER_MODEL}' loaded. Press {hotkey_string} to start recording.",
             )
-            self.set_state(state.State.READY_TO_LISTEN)
+            self.app.set_state(state.State.READY_TO_LISTEN)
         except Exception as e:
-            self.set_state(state.State.ERROR, message=str(e))
+            self.app.set_state(state.State.ERROR, message=str(e))
 
     def _quit_app(self) -> None:
         if hasattr(self, "listener"):
             self.listener.stop()
 
     def _on_listening_started(self) -> None:
-        self.set_state(state.State.LISTENING)
+        self.app.set_state(state.State.LISTENING)
 
     def _on_listening_stopped(self) -> None:
-        self.set_state(state.State.TRANSCRIBING)
+        self.app.set_state(state.State.TRANSCRIBING)
 
     def _on_transcription_complete(self, text: str) -> None:
         if text:
@@ -65,15 +65,18 @@ class ListenerApp(state.App):
                 notification.NotificationType.NO_SPEECH_DETECTED,
                 "Try speaking louder or closer to the microphone.",
             )
-        self.set_state(state.State.READY_TO_LISTEN)
+        self.app.set_state(state.State.READY_TO_LISTEN)
 
     def _on_error(self, message: str) -> None:
-        self.set_state(state.State.ERROR, message=message)
+        self.app.set_state(state.State.ERROR, message=message)
 
         notification.send_notification(
             notification.NotificationType.ERROR,
             message,
         )
+
+    def run(self) -> None:
+        self.app.run()
 
 
 def main() -> None:

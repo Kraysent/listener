@@ -6,3 +6,4 @@
 - automatic pasting (maybe optional)
 - history of executions
 - pack as easy-to run binary/command
+- pick style of writing (e.g. chnge system prompt to use certain style)

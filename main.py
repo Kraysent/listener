@@ -1,4 +1,5 @@
 import logging
+import sys
 import tempfile
 import threading
 from pathlib import Path
@@ -32,6 +33,7 @@ class ListenerApp(rumps.App):
         self.model_loading = True
         
         self.menu = [rumps.MenuItem("Status: Loading model...")]
+        self.keyboard_listener: keyboard.Listener | None = None
         
         threading.Thread(target=self._load_model, daemon=True).start()
         threading.Thread(target=self._start_hotkey_listener, daemon=True).start()
@@ -50,7 +52,6 @@ class ListenerApp(rumps.App):
             self._update_status(f"Error loading model: {e}")
 
     def _update_status(self, status: str, icon: str | None = None) -> None:
-        logger.info(f"Status: {status}")
         if self.menu and len(self.menu) > 0:
             self.menu["Status: Loading model..."].title = f"Status: {status}"
         if icon:
@@ -61,8 +62,32 @@ class ListenerApp(rumps.App):
             if key == HOTKEY:
                 self._toggle_recording()
 
-        with keyboard.Listener(on_press=on_press) as listener:
-            listener.join()
+        def on_error(error: Exception) -> None:
+            logger.error(f"Keyboard listener error: {error}")
+            rumps.notification(
+                title="Listener",
+                subtitle="Accessibility Permission Required",
+                message="Please grant accessibility permissions in System Settings → Privacy & Security → Accessibility",
+            )
+            self._update_status("Accessibility permission required", icon="⚠️")
+
+        try:
+            self.keyboard_listener = keyboard.Listener(on_press=on_press, on_error=on_error)
+            self.keyboard_listener.start()
+            
+            import time
+            time.sleep(0.5)
+            
+            if not self.keyboard_listener.is_alive():
+                raise RuntimeError("Keyboard listener failed to start - check accessibility permissions")
+        except Exception as e:
+            logger.error(f"Failed to start keyboard listener: {e}")
+            rumps.notification(
+                title="Listener",
+                subtitle="Keyboard Access Error",
+                message="Could not start keyboard listener. Please grant accessibility permissions in System Settings → Privacy & Security → Accessibility, then restart the app.",
+            )
+            self._update_status("Accessibility permission required", icon="⚠️")
 
     def _toggle_recording(self) -> None:
         if self.model_loading:
@@ -86,8 +111,6 @@ class ListenerApp(rumps.App):
         def audio_callback(
             indata: np.ndarray, frames: int, time_info: dict, status: sd.CallbackFlags
         ) -> None:
-            if status:
-                print(f"Audio callback status: {status}")
             self.audio_data.append(indata.copy())
 
         try:
@@ -98,13 +121,21 @@ class ListenerApp(rumps.App):
                 callback=audio_callback,
             )
             self.stream.start()
+        except PermissionError as e:
+            self.is_recording = False
+            self._update_status("Microphone permission required", icon="⚠️")
+            rumps.notification(
+                title="Listener",
+                subtitle="Microphone Permission Required",
+                message="Please grant microphone access in System Settings → Privacy & Security → Microphone, then try again.",
+            )
         except Exception as e:
             self.is_recording = False
             self._update_status(f"Microphone error: {e}", icon="🎤")
             rumps.notification(
                 title="Listener",
                 subtitle="Error",
-                message=f"Could not access microphone: {e}",
+                message=f"Could not access microphone: {e}. Please check microphone permissions in System Settings.",
             )
 
     def _stop_recording(self) -> None:
@@ -165,11 +196,57 @@ class ListenerApp(rumps.App):
         if self.stream:
             self.stream.stop()
             self.stream.close()
+        if self.keyboard_listener:
+            self.keyboard_listener.stop()
         rumps.quit_application()
 
 
 def main() -> None:
-    ListenerApp().run()
+    import fcntl
+    import os
+    
+    lock_file = Path.home() / ".listener.lock"
+    lock_fd = None
+    
+    try:
+        if lock_file.exists():
+            try:
+                with open(lock_file, 'r') as f:
+                    pid = int(f.read().strip())
+                    try:
+                        os.kill(pid, 0)
+                        logger.error("Another instance of Listener is already running")
+                        sys.exit(1)
+                    except ProcessLookupError:
+                        lock_file.unlink(missing_ok=True)
+                    except PermissionError:
+                        logger.error("Another instance of Listener is already running")
+                        sys.exit(1)
+            except (ValueError, FileNotFoundError):
+                lock_file.unlink(missing_ok=True)
+        
+        with open(lock_file, 'w') as f:
+            f.write(str(os.getpid()))
+            f.flush()
+            os.fsync(f.fileno())
+            lock_fd = f.fileno()
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except (OSError, IOError) as e:
+        if e.errno == 11:
+            logger.error("Another instance of Listener is already running (lock file is locked)")
+        else:
+            logger.error(f"Failed to create lock file: {e}")
+        sys.exit(1)
+    
+    try:
+        ListenerApp().run()
+    finally:
+        try:
+            if lock_fd is not None:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            lock_file.unlink(missing_ok=True)
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

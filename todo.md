@@ -4,6 +4,6 @@
 - dictionary via prompt for whisper model with configurability through tray icon
 - proper tray icons for each state
 - automatic pasting (maybe optional)
-- history of executions
+- history of executions (maybe not needed, can just use separate clipboard history app)
 - pack as easy-to run binary/command
 - pick style of writing (e.g. chnge system prompt to use certain style)

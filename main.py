@@ -1,12 +1,11 @@
 import logging
+import pathlib
 import sys
-from pathlib import Path
 import fcntl
 import os
 import pyperclip
-from pynput import keyboard
 
-from app import listener, state, notification
+from app import listener, state, notification, settings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -15,32 +14,36 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 WHISPER_MODEL = "tiny"
-HOTKEY = keyboard.Key.alt_r
 
 
 class ListenerApp(state.App):
     def __init__(self):
-        super().__init__(on_quit=self.quit_app)
+        super().__init__(on_quit=self._quit_app)
         self.set_state(state.State.STARTUP)
+
+        self.settings = settings.load_settings(
+            config_path=pathlib.Path("config") / "settings.json"
+        )
 
         try:
             self.listener = listener.Listener(
-                hotkey=HOTKEY,
+                hotkey=self.settings.hotkey.to_keyboard_key(),
                 model=WHISPER_MODEL,
                 on_listening_started=self._on_listening_started,
                 on_listening_stopped=self._on_listening_stopped,
                 on_transcription_complete=self._on_transcription_complete,
                 on_error=self._on_error,
             )
+            hotkey_string = self.settings.hotkey.to_string()
             notification.send_notification(
                 notification.NotificationType.READY,
-                f"Whisper model '{WHISPER_MODEL}' loaded. Press Right Option to start recording.",
+                f"Whisper model '{WHISPER_MODEL}' loaded. Press {hotkey_string} to start recording.",
             )
             self.set_state(state.State.READY_TO_LISTEN)
         except Exception as e:
             self.set_state(state.State.ERROR, message=str(e))
 
-    def quit_app(self) -> None:
+    def _quit_app(self) -> None:
         if hasattr(self, "listener"):
             self.listener.stop()
 
@@ -74,7 +77,7 @@ class ListenerApp(state.App):
 
 
 def main() -> None:
-    lock_file = Path.home() / ".listener.lock"
+    lock_file = pathlib.Path.home() / ".listener.lock"
     lock_fd = None
 
     try:

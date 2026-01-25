@@ -5,7 +5,7 @@ import fcntl
 import os
 import pyperclip
 
-from app import listener, settings, state, notification
+from app import listener, settings, state, notification, overlay
 
 logging.basicConfig(
     level=logging.INFO,
@@ -16,9 +16,14 @@ logger = logging.getLogger(__name__)
 
 class ListenerApp:
     def __init__(self):
-        config_path = pathlib.Path("config") / "settings.json"
+        if getattr(sys, 'frozen', False):
+            base_path = pathlib.Path(sys._MEIPASS)
+        else:
+            base_path = pathlib.Path(__file__).parent
+        config_path = base_path / "config" / "settings.json"
         self.app = state.App(config_path=config_path, on_quit=self._quit_app)
         self.app.set_state(state.State.STARTUP)
+        self.status_overlay = overlay.StatusOverlay()
 
         try:
             self.listener = listener.Listener(
@@ -54,18 +59,22 @@ class ListenerApp:
 
     def _on_listening_started(self) -> None:
         self.app.set_state(state.State.LISTENING)
+        self.status_overlay.show("🔴 Recording...")
 
     def _on_listening_stopped(self) -> None:
         self.app.set_state(state.State.TRANSCRIBING)
+        self.status_overlay.show("⏳ Transcribing...")
 
     def _on_transcription_complete(self, text: str) -> None:
         if text:
             pyperclip.copy(text)
+            self.status_overlay.show("✓ Complete", duration=1.5)
             notification.send_notification(
                 notification.NotificationType.TRANSCRIPTION_COMPLETE,
                 f"Copied to clipboard: {text[:50]}{'...' if len(text) > 50 else ''}",
             )
         else:
+            self.status_overlay.show("⚠ No speech", duration=1.5)
             notification.send_notification(
                 notification.NotificationType.NO_SPEECH_DETECTED,
                 "Try speaking louder or closer to the microphone.",

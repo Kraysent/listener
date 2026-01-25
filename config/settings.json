@@ -1,5 +1,5 @@
 {
   "hotkey": "right_option",
-  "whisper_model": "tiny",
+  "whisper_model": "turbo",
   "sample_rate": 16000
 }

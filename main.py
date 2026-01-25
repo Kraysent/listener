@@ -22,7 +22,7 @@ class ListenerApp(state.App):
     def __init__(self):
         super().__init__(on_quit=self.quit_app)
         self.set_state(state.State.STARTUP)
-        
+
         try:
             self.listener = listener.Listener(
                 hotkey=HOTKEY,
@@ -41,7 +41,7 @@ class ListenerApp(state.App):
             self.set_state(state.State.ERROR, message=str(e))
 
     def quit_app(self) -> None:
-        if hasattr(self, 'listener'):
+        if hasattr(self, "listener"):
             self.listener.stop()
 
     def _on_listening_started(self) -> None:
@@ -76,11 +76,11 @@ class ListenerApp(state.App):
 def main() -> None:
     lock_file = Path.home() / ".listener.lock"
     lock_fd = None
-    
+
     try:
         if lock_file.exists():
             try:
-                with open(lock_file, 'r') as f:
+                with open(lock_file, "r") as f:
                     pid = int(f.read().strip())
                     try:
                         os.kill(pid, 0)
@@ -93,8 +93,8 @@ def main() -> None:
                         sys.exit(1)
             except (ValueError, FileNotFoundError):
                 lock_file.unlink(missing_ok=True)
-        
-        with open(lock_file, 'w') as f:
+
+        with open(lock_file, "w") as f:
             f.write(str(os.getpid()))
             f.flush()
             os.fsync(f.fileno())
@@ -102,11 +102,13 @@ def main() -> None:
             fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except (OSError, IOError) as e:
         if e.errno == 11:
-            logger.error("Another instance of Listener is already running (lock file is locked)")
+            logger.error(
+                "Another instance of Listener is already running (lock file is locked)"
+            )
         else:
             logger.error(f"Failed to create lock file: {e}")
         sys.exit(1)
-    
+
     try:
         ListenerApp().run()
     finally:

@@ -9,6 +9,10 @@ clean:
 install: build
 	cp -r dist/Listener.app /Applications/
 
+fix:
+	uvx ruff check --fix .
+	uvx ruff format .
+
 help:
 	@echo "Available targets:"
 	@echo "  build    - Build the Listener.app bundle"

@@ -3,9 +3,9 @@ import multiprocessing
 import queue
 import tempfile
 import threading
-from pathlib import Path
 import time
-from typing import Callable
+from collections.abc import Callable
+from pathlib import Path
 
 import numpy as np
 import sounddevice as sd
@@ -103,9 +103,7 @@ class Listener:
                 self.on_error(error_msg)
 
         try:
-            self.keyboard_listener = keyboard.Listener(
-                on_press=on_press, on_error=on_error_handler
-            )
+            self.keyboard_listener = keyboard.Listener(on_press=on_press, on_error=on_error_handler)
             self.keyboard_listener.start()
 
             time.sleep(0.5)
@@ -135,9 +133,7 @@ class Listener:
         if self.on_listening_started:
             self.on_listening_started()
 
-        def audio_callback(
-            indata: np.ndarray, frames: int, time_info: dict, status: sd.CallbackFlags
-        ) -> None:
+        def audio_callback(indata: np.ndarray, frames: int, time_info: dict, status: sd.CallbackFlags) -> None:
             self.audio_data.append(indata.copy())
 
         try:

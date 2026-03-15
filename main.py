@@ -1,13 +1,14 @@
 import atexit
+import fcntl
 import logging
+import os
 import pathlib
 import sys
-import fcntl
-import os
+
 import pyperclip
 from pynput import keyboard
 
-from app import listener, settings, state, notification, overlay, permissions
+from app import listener, notification, overlay, permissions, settings, state
 
 logging.basicConfig(
     level=logging.INFO,
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class ListenerApp:
     def __init__(self):
-        if getattr(sys, 'frozen', False):
+        if getattr(sys, "frozen", False):
             base_path = pathlib.Path(sys._MEIPASS)
         else:
             base_path = pathlib.Path(__file__).parent
@@ -99,8 +100,8 @@ class ListenerApp:
         try:
             controller = keyboard.Controller()
             controller.press(keyboard.Key.cmd)
-            controller.press('v')
-            controller.release('v')
+            controller.press("v")
+            controller.release("v")
             controller.release(keyboard.Key.cmd)
         except Exception as e:
             logger.warning(f"Failed to paste text: {e}")
@@ -121,7 +122,7 @@ def main() -> None:
     try:
         if lock_file.exists():
             try:
-                with open(lock_file, "r") as f:
+                with open(lock_file) as f:
                     pid = int(f.read().strip())
                     try:
                         os.kill(pid, 0)
@@ -141,11 +142,9 @@ def main() -> None:
             os.fsync(f.fileno())
             lock_fd = f.fileno()
             fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except (OSError, IOError) as e:
+    except OSError as e:
         if e.errno == 11:
-            logger.error(
-                "Another instance of Listener is already running (lock file is locked)"
-            )
+            logger.error("Another instance of Listener is already running (lock file is locked)")
         else:
             logger.error(f"Failed to create lock file: {e}")
         sys.exit(1)

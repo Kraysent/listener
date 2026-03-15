@@ -1,7 +1,8 @@
 import enum
-from typing import Callable
-from dataclasses import dataclass
 import pathlib
+from collections.abc import Callable
+from dataclasses import dataclass
+
 import rumps
 
 from app import settings
@@ -71,18 +72,14 @@ class App(rumps.App):
 
         if state == State.TRANSCRIBING and self.on_cancel_transcription:
             if self._cancel_menu_item is None:
-                self._cancel_menu_item = rumps.MenuItem(
-                    "Cancel", callback=self._cancel_transcription_handler
-                )
+                self._cancel_menu_item = rumps.MenuItem("Cancel", callback=self._cancel_transcription_handler)
                 self.menu.insert_before("Quit", self._cancel_menu_item)
         else:
             if self._cancel_menu_item is not None:
                 del self.menu[self._cancel_menu_item.title]
                 self._cancel_menu_item = None
 
-    def subscribe_to_settings(
-        self, callback: Callable[[settings.Settings], None]
-    ) -> Callable[[], None]:
+    def subscribe_to_settings(self, callback: Callable[[settings.Settings], None]) -> Callable[[], None]:
         self._settings_observers.append(callback)
 
         def unsubscribe() -> None:

@@ -1,8 +1,9 @@
 import enum
 import json
 import pathlib
-from pynput import keyboard
+
 import pydantic
+from pynput import keyboard
 
 
 class Hotkey(enum.Enum):
@@ -12,18 +13,16 @@ class Hotkey(enum.Enum):
     def to_keyboard_key(self) -> keyboard.Key | keyboard.KeyCode:
         if self == Hotkey.F4:
             return keyboard.Key.f4
-        elif self == Hotkey.RIGHT_OPTION:
+        if self == Hotkey.RIGHT_OPTION:
             return keyboard.Key.alt_r
-        else:
-            raise ValueError(f"Unknown hotkey: {self}")
+        raise ValueError(f"Unknown hotkey: {self}")
 
     def to_string(self) -> str:
         if self == Hotkey.F4:
             return "F4"
-        elif self == Hotkey.RIGHT_OPTION:
+        if self == Hotkey.RIGHT_OPTION:
             return "Right Option"
-        else:
-            raise ValueError(f"Unknown hotkey: {self}")
+        raise ValueError(f"Unknown hotkey: {self}")
 
 
 class Settings(pydantic.BaseModel):
@@ -33,7 +32,7 @@ class Settings(pydantic.BaseModel):
 
 
 def load_settings(config_path: pathlib.Path):
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(config_path, encoding="utf-8") as f:
         data = f.read()
     settings_dict = json.loads(data)
     return Settings(**settings_dict)

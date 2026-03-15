@@ -1,13 +1,13 @@
-import AppKit
-from typing import Optional
 import threading
 import time
+
+import AppKit
 
 
 class StatusOverlay:
     def __init__(self):
-        self.window: Optional[AppKit.NSWindow] = None
-        self.label: Optional[AppKit.NSTextField] = None
+        self.window: AppKit.NSWindow | None = None
+        self.label: AppKit.NSTextField | None = None
         self._create_window()
 
     def _create_window(self) -> None:
@@ -31,9 +31,7 @@ class StatusOverlay:
         self.window.setIgnoresMouseEvents_(True)
         self.window.setHasShadow_(True)
 
-        visual_effect = AppKit.NSVisualEffectView.alloc().initWithFrame_(
-            AppKit.NSMakeRect(0, 0, width, height)
-        )
+        visual_effect = AppKit.NSVisualEffectView.alloc().initWithFrame_(AppKit.NSMakeRect(0, 0, width, height))
         visual_effect.setMaterial_(AppKit.NSVisualEffectMaterialHUDWindow)
         visual_effect.setState_(AppKit.NSVisualEffectStateActive)
         visual_effect.setBlendingMode_(AppKit.NSVisualEffectBlendingModeBehindWindow)
@@ -41,9 +39,7 @@ class StatusOverlay:
         visual_effect.layer().setCornerRadius_(12.0)
         visual_effect.layer().setMasksToBounds_(True)
 
-        self.label = AppKit.NSTextField.alloc().initWithFrame_(
-            AppKit.NSMakeRect(10, 8, width - 20, height - 16)
-        )
+        self.label = AppKit.NSTextField.alloc().initWithFrame_(AppKit.NSMakeRect(10, 8, width - 20, height - 16))
         self.label.setBordered_(False)
         self.label.setDrawsBackground_(False)
         self.label.setEditable_(False)
@@ -55,7 +51,7 @@ class StatusOverlay:
         visual_effect.addSubview_(self.label)
         self.window.contentView().addSubview_(visual_effect)
 
-    def show(self, text: str, duration: Optional[float] = None) -> None:
+    def show(self, text: str, duration: float | None = None) -> None:
         if not self.window or not self.label:
             return
 
@@ -67,16 +63,16 @@ class StatusOverlay:
         AppKit.NSOperationQueue.mainQueue().addOperationWithBlock_(show_on_main_thread)
 
         if duration:
+
             def hide_after() -> None:
                 time.sleep(duration)
-                AppKit.NSOperationQueue.mainQueue().addOperationWithBlock_(
-                    lambda: self.hide()
-                )
+                AppKit.NSOperationQueue.mainQueue().addOperationWithBlock_(lambda: self.hide())
 
             threading.Thread(target=hide_after, daemon=True).start()
 
     def hide(self) -> None:
         if self.window:
+
             def hide_on_main_thread() -> None:
                 self.window.orderOut_(None)
 

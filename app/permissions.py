@@ -1,5 +1,6 @@
 import logging
 import subprocess
+
 from pynput import keyboard
 
 logger = logging.getLogger(__name__)

@@ -15,3 +15,54 @@ dependencies = [
     "pyinstaller>=6.0.0",
     "pydantic>=2.12.5",
 ]
+
+[dependency-groups]
+dev = [
+    # fixed version so no new linter/formatter errors are introduced over time
+    # probably should not update outside the template
+    "ruff~=0.15.0",
+    "pytest~=9.0.2",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+src = ["."]
+
+[tool.ruff.lint]
+ignore = [
+    "N818", # ignore SomeException -> SomeError rule
+    "B024", # abstract class without abstract methods
+    "B017", # ignore assertRaises(Exception)
+    "B027", # empty method without abstract decorator
+]
+# see https://docs.astral.sh/ruff/rules/ for description of each rule set.
+select = [
+    "E",
+    "F",
+    "I",
+    "N",
+    "UP",
+    "YTT",
+    "B",
+    "A",
+    "C4",
+    "DTZ",
+    "PIE",
+    "RET",
+    "SLF",
+    "PTH",
+    "PLE",
+    "FLY",
+    "NPY201",
+    "PLC0415",
+    "S101",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = [
+    "F403", # ignore star imports warning in __init__ files
+]
+"tests/**" = ["S101"]

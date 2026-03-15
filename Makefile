@@ -1,7 +1,43 @@
-.PHONY: build clean install dmg help
+install:
+	uv sync
 
-build: clean
+install-dev:
+	uv sync --all-extras
+
+check:
+	@find . \
+		-name "*.py" \
+		-not -path "./.venv/*" \
+		-not -path "./.git/*" \
+		-exec uv run python -m py_compile {} +
+	@uvx ruff format \
+		--quiet \
+		--config=pyproject.toml \
+		--check
+	@uvx ruff check \
+		--quiet \
+		--config=pyproject.toml
+	@uv run pytest \
+		--quiet \
+		--config-file=pyproject.toml
+
+fix:
+	@uvx ruff format \
+		--quiet \
+		--config=pyproject.toml
+	@uvx ruff check \
+		--quiet \
+		--config=pyproject.toml \
+		--fix
+
+build:
 	uv run pyinstaller --distpath dist/app build_app.spec
+
+update-template:
+	copier update \
+		--skip-answered \
+		--conflict inline \
+		--answers-file .template.yaml
 
 clean:
 	/bin/rm -rf dist build || true
@@ -9,15 +45,3 @@ clean:
 dmg: build
 	ln -s /Applications dist/app/Applications
 	hdiutil create -volname "Listener" -srcfolder "dist/app" -ov -format UDZO "dist/Listener.dmg"
-
-fix:
-	uvx ruff check --fix .
-	uvx ruff format .
-
-help:
-	@echo "Available targets:"
-	@echo "  build    - Build the Listener.app bundle"
-	@echo "  clean    - Remove build artifacts (dist/ and build/)"
-	@echo "  install  - Build and install the app to /Applications/"
-	@echo "  dmg      - Build the app and create a DMG file for distribution"
-	@echo "  help     - Show this help message"

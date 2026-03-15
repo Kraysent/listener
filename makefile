@@ -33,6 +33,14 @@ fix:
 build:
 	uv run pyinstaller --distpath dist/app build_app.spec
 
+new-branch:
+	@read -p "Branch name: " branch_name && \
+	base=$$(git remote show origin | sed -n '/HEAD branch/s/.*: //p') && \
+	echo "Selecting $$base branch as default" && \
+	git fetch origin $$base && \
+	git checkout -b $$branch_name origin/$$base && \
+	git push -u origin $$branch_name
+
 update-template:
 	copier update \
 		--skip-answered \

@@ -5,6 +5,14 @@ install-dev:
 	uv sync --all-extras
 
 check:
+	@output=$$(copier check-update --answers-file .template.yaml 2>&1) || true; \
+	if echo "$$output" | grep -q "up-to-date"; then \
+		true; \
+	elif echo "$$output" | grep -q "New template version"; then \
+		echo "Template update available, run make update-template"; \
+	else \
+		echo "$$output"; \
+	fi
 	@find . \
 		-name "*.py" \
 		-not -path "./.venv/*" \
@@ -35,6 +43,7 @@ build:
 
 new-branch:
 	@read -p "Branch name: " branch_name && \
+	branch_name=$${branch_name// /-} && \
 	base=$$(git remote show origin | sed -n '/HEAD branch/s/.*: //p') && \
 	echo "Selecting $$base branch as default" && \
 	git fetch origin $$base && \

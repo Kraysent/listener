@@ -98,7 +98,10 @@ class Listener:
 
         def on_error_handler(error: Exception) -> None:
             logger.error(f"Keyboard listener error: {error}")
-            error_msg = "Accessibility permission required. Please grant accessibility permissions in System Settings → Privacy & Security → Accessibility"
+            error_msg = (
+                "Accessibility permission required. Please grant accessibility "
+                "permissions in System Settings → Privacy & Security → Accessibility"
+            )
             if self.on_error:
                 self.on_error(error_msg)
 
@@ -115,7 +118,11 @@ class Listener:
                 raise RuntimeError(error_msg)
         except Exception as e:
             logger.error(f"Failed to start keyboard listener: {e}")
-            error_msg = f"Could not start keyboard listener: {e}. Please grant accessibility permissions in System Settings → Privacy & Security → Accessibility, then restart the app."
+            error_msg = (
+                f"Could not start keyboard listener: {e}. Please grant accessibility "
+                "permissions in System Settings → Privacy & Security → Accessibility, "
+                "then restart the app."
+            )
             if self.on_error:
                 self.on_error(error_msg)
             raise
@@ -146,7 +153,10 @@ class Listener:
             self.stream.start()
         except PermissionError:
             self.is_recording = False
-            error_msg = "Microphone permission required. Please grant microphone access in System Settings → Privacy & Security → Microphone, then try again."
+            error_msg = (
+                "Microphone permission required. Please grant microphone access in "
+                "System Settings → Privacy & Security → Microphone, then try again."
+            )
             if self.on_error:
                 self.on_error(error_msg)
         except Exception as e:

@@ -32,7 +32,7 @@ class Settings(pydantic.BaseModel):
 
 
 def load_settings(config_path: pathlib.Path):
-    with open(config_path, encoding="utf-8") as f:
+    with config_path.open(encoding="utf-8") as f:
         data = f.read()
     settings_dict = json.loads(data)
     return Settings(**settings_dict)

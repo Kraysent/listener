@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class ListenerApp:
     def __init__(self):
         if getattr(sys, "frozen", False):
-            base_path = pathlib.Path(sys._MEIPASS)
+            base_path = pathlib.Path(getattr(sys, "_MEIPASS", "."))
         else:
             base_path = pathlib.Path(__file__).parent
         config_path = base_path / "config" / "settings.json"
@@ -42,7 +42,10 @@ class ListenerApp:
             )
             self.app.set_state(
                 state.State.ERROR,
-                message="Accessibility permission required. Please grant permission in System Settings, then restart the app.",
+                message=(
+                    "Accessibility permission required. Please grant permission in "
+                    "System Settings, then restart the app."
+                ),
             )
             return
 
@@ -122,7 +125,7 @@ def main() -> None:
     try:
         if lock_file.exists():
             try:
-                with open(lock_file) as f:
+                with lock_file.open() as f:
                     pid = int(f.read().strip())
                     try:
                         os.kill(pid, 0)
@@ -136,7 +139,7 @@ def main() -> None:
             except (ValueError, FileNotFoundError):
                 lock_file.unlink(missing_ok=True)
 
-        with open(lock_file, "w") as f:
+        with lock_file.open("w") as f:
             f.write(str(os.getpid()))
             f.flush()
             os.fsync(f.fileno())

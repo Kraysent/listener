@@ -35,7 +35,12 @@ _STATE_CONFIG: dict[State, StateConfig] = {
 
 
 class App(rumps.App):
-    def __init__(self, config_path: pathlib.Path, on_quit: Callable[[], None]):
+    def __init__(
+        self,
+        config_path: pathlib.Path,
+        on_quit: Callable[[], None],
+        on_cancel_transcription: Callable[[], None] | None = None,
+    ):
         super().__init__(
             "Listener",
             "🎤",
@@ -46,7 +51,9 @@ class App(rumps.App):
         self.config_path = config_path
         self.settings = settings.load_settings(config_path=config_path)
         self.on_quit_callback = on_quit
+        self.on_cancel_transcription = on_cancel_transcription
         self._settings_observers: list[Callable[[settings.Settings], None]] = []
+        self._cancel_menu_item: rumps.MenuItem | None = None
         self.menu.add(rumps.MenuItem("Quit", callback=self._quit_handler))
 
     def set_state(self, state: State, message: str = "") -> None:
@@ -61,6 +68,17 @@ class App(rumps.App):
             icon = icon_config
 
         self.title = icon
+
+        if state == State.TRANSCRIBING and self.on_cancel_transcription:
+            if self._cancel_menu_item is None:
+                self._cancel_menu_item = rumps.MenuItem(
+                    "Cancel", callback=self._cancel_transcription_handler
+                )
+                self.menu.insert_before("Quit", self._cancel_menu_item)
+        else:
+            if self._cancel_menu_item is not None:
+                del self.menu[self._cancel_menu_item.title]
+                self._cancel_menu_item = None
 
     def subscribe_to_settings(
         self, callback: Callable[[settings.Settings], None]
@@ -88,3 +106,7 @@ class App(rumps.App):
     def _quit_handler(self, _) -> None:
         self.on_quit_callback()
         rumps.quit_application()
+
+    def _cancel_transcription_handler(self, _) -> None:
+        if self.on_cancel_transcription:
+            self.on_cancel_transcription()

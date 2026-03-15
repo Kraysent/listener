@@ -4,3 +4,5 @@
 - history of executions (maybe not needed, can just use separate clipboard history app)
 - pack as easy-to run binary/command
 - pick style of writing (e.g. chnge system prompt to use certain style)
+- cancel button for transcription
+- animation reflecting sound that is being spoken

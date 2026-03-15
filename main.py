@@ -1,3 +1,4 @@
+import atexit
 import logging
 import pathlib
 import sys
@@ -22,7 +23,11 @@ class ListenerApp:
         else:
             base_path = pathlib.Path(__file__).parent
         config_path = base_path / "config" / "settings.json"
-        self.app = state.App(config_path=config_path, on_quit=self._quit_app)
+        self.app = state.App(
+            config_path=config_path,
+            on_quit=self._quit_app,
+            on_cancel_transcription=self._on_cancel_transcription,
+        )
         self.app.set_state(state.State.STARTUP)
         self.status_overlay = overlay.StatusOverlay()
 
@@ -75,6 +80,11 @@ class ListenerApp:
     def _on_listening_stopped(self) -> None:
         self.app.set_state(state.State.TRANSCRIBING)
         self.status_overlay.show("⏳ Transcribing...")
+
+    def _on_cancel_transcription(self) -> None:
+        self.listener.cancel_transcription()
+        self.app.set_state(state.State.READY_TO_LISTEN)
+        self.status_overlay.hide()
 
     def _on_transcription_complete(self, text: str) -> None:
         if text:
@@ -140,8 +150,11 @@ def main() -> None:
             logger.error(f"Failed to create lock file: {e}")
         sys.exit(1)
 
+    app = ListenerApp()
+    if hasattr(app, "listener"):
+        atexit.register(app.listener.stop)
     try:
-        ListenerApp().run()
+        app.run()
     finally:
         try:
             if lock_fd is not None:

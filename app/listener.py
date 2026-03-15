@@ -1,4 +1,6 @@
 import logging
+import multiprocessing
+import queue
 import tempfile
 import threading
 from pathlib import Path
@@ -12,6 +14,18 @@ from pynput import keyboard
 from scipy.io import wavfile
 
 logger = logging.getLogger(__name__)
+
+
+def _transcribe_in_process(
+    model_name: str, sample_rate: int, wav_path: str, result_queue: multiprocessing.Queue
+) -> None:
+    try:
+        model = WhisperModel(model_name, compute_type="int8")
+        segments, _ = model.transcribe(wav_path)
+        text = " ".join(segment.text for segment in segments).strip()
+        result_queue.put(("ok", text))
+    except Exception as e:
+        result_queue.put(("error", str(e)))
 
 
 class Listener:
@@ -34,6 +48,10 @@ class Listener:
         self.on_listening_stopped = on_listening_stopped
         self.on_transcription_complete = on_transcription_complete
         self.on_error = on_error
+        self._transcription_process: multiprocessing.Process | None = None
+        self._transcription_queue: multiprocessing.Queue | None = None
+        self._transcription_cancelled = threading.Event()
+        self._transcription_temp_path: Path | None = None
 
         self._initialize(hotkey, model, sample_rate)
 
@@ -157,31 +175,84 @@ class Listener:
                 self.on_transcription_complete("")
             return
 
-        threading.Thread(target=self._transcribe_audio, daemon=True).start()
+        self._transcription_cancelled.clear()
+        threading.Thread(target=self._run_transcription_process, daemon=True).start()
 
-    def _transcribe_audio(self) -> None:
+    def cancel_transcription(self) -> None:
+        self._transcription_cancelled.set()
+        proc = self._transcription_process
+        if proc is not None and proc.is_alive():
+            proc.terminate()
+            proc.join(timeout=2)
+            if proc.is_alive():
+                proc.kill()
+                proc.join(timeout=1)
+            self._transcription_process = None
+        if self._transcription_queue is not None:
+            self._transcription_queue.close()
+            self._transcription_queue.join_thread()
+            self._transcription_queue = None
+        if self._transcription_temp_path is not None and self._transcription_temp_path.exists():
+            self._transcription_temp_path.unlink(missing_ok=True)
+            self._transcription_temp_path = None
+
+    def _run_transcription_process(self) -> None:
+        temp_path: Path | None = None
         try:
             audio = np.concatenate(self.audio_data, axis=0).flatten()
-
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
                 temp_path = Path(f.name)
+                self._transcription_temp_path = temp_path
                 audio_int16 = (audio * 32767).astype(np.int16)
                 wavfile.write(temp_path, self.sample_rate, audio_int16)
 
-            segments, _ = self.model.transcribe(str(temp_path))
-            text = " ".join(segment.text for segment in segments).strip()
+            self._transcription_queue = multiprocessing.Queue()
+            self._transcription_process = multiprocessing.Process(
+                target=_transcribe_in_process,
+                args=(
+                    self.model_name,
+                    self.sample_rate,
+                    str(temp_path),
+                    self._transcription_queue,
+                ),
+                daemon=True,
+            )
+            self._transcription_process.start()
 
-            temp_path.unlink()
+            while self._transcription_process.is_alive() or not self._transcription_queue.empty():
+                if self._transcription_cancelled.is_set():
+                    break
+                try:
+                    status, value = self._transcription_queue.get(timeout=0.2)
+                    if self._transcription_cancelled.is_set():
+                        break
+                    if status == "ok" and self.on_transcription_complete:
+                        self.on_transcription_complete(value)
+                    elif status == "error" and self.on_error:
+                        self.on_error(value)
+                    break
+                except queue.Empty:
+                    continue
 
-            if self.on_transcription_complete:
-                self.on_transcription_complete(text)
-
+            if self._transcription_process.is_alive():
+                self._transcription_process.join(timeout=1)
         except Exception as e:
-            error_msg = str(e)
-            if self.on_error:
-                self.on_error(error_msg)
+            if self.on_error and not self._transcription_cancelled.is_set():
+                self.on_error(str(e))
+        finally:
+            if self._transcription_process is not None and self._transcription_process.is_alive():
+                self._transcription_process.join(timeout=2)
+            self._transcription_process = None
+            if self._transcription_queue is not None:
+                self._transcription_queue.close()
+                self._transcription_queue.join_thread()
+                self._transcription_queue = None
+            if temp_path is not None and temp_path.exists():
+                temp_path.unlink(missing_ok=True)
+            self._transcription_temp_path = None
 
     def stop(self) -> None:
+        self.cancel_transcription()
         if self.stream:
             self.stream.stop()
             self.stream.close()
